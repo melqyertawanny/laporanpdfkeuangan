@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laporan Catatan Keuangan</title>
+    <!-- Tailwind CSS untuk styling tampilan web -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- jsPDF dan AutoTable plugin untuk export PDF yang stabil & rapi -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <!-- PapaParse untuk parsing CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans p-4 sm:p-6">
+
+    <div class="max-w-4xl mx-auto mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div>
+            <h1 class="text-xl sm:text-2xl font-bold text-gray-900 text-center sm:text-left">Dashboard Keuangan</h1>
+            <p id="status-text" class="text-sm text-gray-500 text-center sm:text-left">Memuat data dari Google Sheets...</p>
+        </div>
+        <!-- Pilihan Pemilik -->
+        <div id="owner-buttons" class="flex gap-2 w-full sm:w-auto justify-center flex-wrap">
+            <!-- Tombol pemilik akan dirender dinamis -->
+        </div>
+    </div>
+
+    <!-- Tampilan Web (Dashboard) -->
+    <div class="max-w-4xl mx-auto bg-white p-6 rounded-xl shadow-md space-y-6">
+        <!-- Header Laporan -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-3 gap-2">
+            <div>
+                <h2 id="owner-title" class="text-lg font-bold text-gray-900">Laporan: -</h2>
+                <p class="text-xs text-gray-500">Sumber data: Google Sheets (Publish CSV)</p>
+            </div>
+            <div>
+                <span class="text-xs bg-green-100 text-green-800 px-2.5 py-0.5 rounded-full font-medium">Live Sync</span>
+            </div>
+        </div>
+
+        <!-- Bagian Tabel Pemasukan -->
+        <div>
+            <h3 class="text-sm font-bold text-green-700 uppercase tracking-wider mb-2">Daftar Pemasukan</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse min-w-[500px]">
+                    <thead>
+                        <tr class="bg-green-50 text-green-800 text-xs uppercase tracking-wider">
+                            <th class="p-2.5 border-b">Tanggal</th>
+                            <th class="p-2.5 border-b">Nama Transaksi</th>
+                            <th class="p-2.5 border-b">Jumlah (Rp)</th>
+                            <th class="p-2.5 border-b">Kategori</th>
+                            <th class="p-2.5 border-b">Metode</th>
+                            <th class="p-2.5 border-b">Catatan</th>
+                        </tr>
+                    </thead>
+                    <tbody id="income-table-body" class="text-xs divide-y divide-gray-200">
+                        <tr><td colspan="6" class="p-3 text-center text-gray-400">Tidak ada data pemasukan.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Bagian Tabel Pengeluaran -->
+        <div>
+            <h3 class="text-sm font-bold text-red-700 uppercase tracking-wider mb-2">Daftar Pengeluaran</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse min-w-[500px]">
+                    <thead>
+                        <tr class="bg-red-50 text-red-800 text-xs uppercase tracking-wider">
+                            <th class="p-2.5 border-b">Tanggal</th>
+                            <th class="p-2.5 border-b">Nama Transaksi</th>
+                            <th class="p-2.5 border-b">Jumlah (Rp)</th>
+                            <th class="p-2.5 border-b">Kategori</th>
+                            <th class="p-2.5 border-b">Metode</th>
+                            <th class="p-2.5 border-b">Catatan</th>
+                        </tr>
+                    </thead>
+                    <tbody id="expense-table-body" class="text-xs divide-y divide-gray-200">
+                        <tr><td colspan="6" class="p-3 text-center text-gray-400">Tidak ada data pengeluaran.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Ringkasan Singkat Web -->
+        <div class="grid grid-cols-3 gap-3 text-center pt-3 border-t">
+            <div class="bg-green-50 p-2.5 rounded-lg border border-green-200">
+                <p class="text-[10px] text-green-600 uppercase font-semibold">Total Pemasukan</p>
+                <p id="total-income" class="text-sm font-bold text-green-700">Rp0</p>
+            </div>
+            <div class="bg-red-50 p-2.5 rounded-lg border border-red-200">
+                <p class="text-[10px] text-red-600 uppercase font-semibold">Total Pengeluaran</p>
+                <p id="total-expense" class="text-sm font-bold text-red-700">Rp0</p>
+            </div>
+            <div class="bg-blue-50 p-2.5 rounded-lg border border-blue-200">
+                <p class="text-[10px] text-blue-600 uppercase font-semibold">Saldo Bersih</p>
+                <p id="net-balance" class="text-sm font-bold text-blue-700">Rp0</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tombol Download PDF -->
+    <div class="mt-6 text-center max-w-4xl mx-auto">
+        <button onclick="downloadPDF()" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg shadow transition duration-200 flex items-center justify-center mx-auto space-x-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span>Unduh Laporan PDF</span>
+        </button>
+    </div>
+  <br>
+<h6 align='center'>Made by Melqy with ♥️</h6>
+    <!-- Script Logika & Ekspor PDF Terstruktur -->
+    <script>
+        const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTtoBOBzI72s3vhBa48ZYyvdFVFGgVo3F4GR7IjpTfGUASeE4zwQIzX0FEazCq2UzqDSXFvMHejYRv6/pub?gid=1948023164&single=true&output=csv';
+
+        let globalTransactions = [];
+        let currentOwner = '';
+        let currentIncomes = [];
+        let currentExpenses = [];
+        let computedIncome = 0;
+        let computedExpense = 0;
+
+        function formatRupiah(number) {
+            return new Intl.NumberFormat('id-ID').format(number);
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            try {
+                const date = new Date(dateString);
+                if (isNaN(date.getTime())) return dateString; // Jika bukan format tanggal standar
+                return date.toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' });
+            } catch (e) {
+                return dateString;
+            }
+        }
+
+        Papa.parse(csvUrl, {
+            download: true,
+            header: true,
+            complete: function(results) {
+                globalTransactions = results.data.filter(row => row.owner && row.name);
+                
+                if (globalTransactions.length > 0) {
+                    document.getElementById('status-text').innerText = 'Data berhasil disinkronisasi dari Google Sheets';
+                    const owners = [...new Set(globalTransactions.map(t => t.owner))];
+                    renderOwnerButtons(owners);
+                    filterOwner(owners[0]);
+                } else {
+                    document.getElementById('status-text').innerText = 'Tidak ada data ditemukan pada sheet.';
+                }
+            },
+            error: function(err) {
+                document.getElementById('status-text').innerText = 'Gagal memuat data. Periksa koneksi internet.';
+                console.error(err);
+            }
+        });
+
+        function renderOwnerButtons(owners) {
+            const container = document.getElementById('owner-buttons');
+            container.innerHTML = '';
+            owners.forEach(owner => {
+                const btn = document.createElement('button');
+                btn.id = `btn-${owner.replace(/\s+/g, '-')}`;
+                btn.innerText = owner;
+                btn.className = "px-4 py-2 text-sm font-semibold rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition";
+                btn.onclick = () => filterOwner(owner);
+                container.appendChild(btn);
+            });
+        }
+
+        function filterOwner(ownerName) {
+            currentOwner = ownerName;
+
+            const buttons = document.getElementById('owner-buttons').children;
+            for (let btn of buttons) {
+                if (btn.innerText === ownerName) {
+                    btn.className = "px-4 py-2 text-sm font-semibold rounded-lg bg-blue-600 text-white transition";
+                } else {
+                    btn.className = "px-4 py-2 text-sm font-semibold rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition";
+                }
+            }
+
+            document.getElementById('owner-title').innerText = `Laporan: ${ownerName}`;
+
+            // Filter data pemilik
+            const filteredData = globalTransactions.filter(t => t.owner === ownerName);
+
+            // Pisahkan berdasarkan jenis (Pemasukan & Pengeluaran)
+            currentIncomes = filteredData.filter(t => String(t.type).toLowerCase() === 'income' || String(t.type).toLowerCase() === 'pemasukan');
+            currentExpenses = filteredData.filter(t => String(t.type).toLowerCase() === 'expense' || String(t.type).toLowerCase() === 'pengeluaran');
+
+            // Urutkan berdasarkan tanggal (terlama ke terbaru)
+            const sortByDate = (a, b) => new Date(a.date || 0) - new Date(b.date || 0);
+            currentIncomes.sort(sortByDate);
+            currentExpenses.sort(sortByDate);
+
+            // Render Tabel Pemasukan
+            const incomeTbody = document.getElementById('income-table-body');
+            incomeTbody.innerHTML = '';
+            computedIncome = 0;
+
+            if (currentIncomes.length === 0) {
+                incomeTbody.innerHTML = `<tr><td colspan="6" class="p-3 text-center text-gray-400">Tidak ada data pemasukan.</td></tr>`;
+            } else {
+                currentIncomes.forEach(t => {
+                    const amount = parseFloat(t.amount) || 0;
+                    computedIncome += amount;
+                    incomeTbody.innerHTML += `
+                        <tr>
+                            <td class="p-2.5">${formatDate(t.date)}</td>
+                            <td class="p-2.5">${t.name}</td>
+                            <td class="p-2.5 text-green-600 font-medium">Rp${formatRupiah(amount)}</td>
+                            <td class="p-2.5">${t.category}</td>
+                            <td class="p-2.5">${t.method}</td>
+                            <td class="p-2.5 text-gray-500">${t.note || '-'}</td>
+                        </tr>
+                    `;
+                });
+            }
+
+            // Render Tabel Pengeluaran
+            const expenseTbody = document.getElementById('expense-table-body');
+            expenseTbody.innerHTML = '';
+            computedExpense = 0;
+
+            if (currentExpenses.length === 0) {
+                expenseTbody.innerHTML = `<tr><td colspan="6" class="p-3 text-center text-gray-400">Tidak ada data pengeluaran.</td></tr>`;
+            } else {
+                currentExpenses.forEach(t => {
+                    const amount = parseFloat(t.amount) || 0;
+                    computedExpense += amount;
+                    expenseTbody.innerHTML += `
+                        <tr>
+                            <td class="p-2.5">${formatDate(t.date)}</td>
+                            <td class="p-2.5">${t.name}</td>
+                            <td class="p-2.5 text-red-600 font-medium">Rp${formatRupiah(amount)}</td>
+                            <td class="p-2.5">${t.category}</td>
+                            <td class="p-2.5">${t.method}</td>
+                            <td class="p-2.5 text-gray-500">${t.note || '-'}</td>
+                        </tr>
+                    `;
+                });
+            }
+
+            // Update Ringkasan
+            const netBalance = computedIncome - computedExpense;
+            document.getElementById('total-income').innerText = `Rp${formatRupiah(computedIncome)}`;
+            document.getElementById('total-expense').innerText = `Rp${formatRupiah(computedExpense)}`;
+            document.getElementById('net-balance').innerText = `Rp${formatRupiah(netBalance)}`;
+        }
+
+        function downloadPDF() {
+            if (!currentOwner) return;
+
+            // Format Nama File: laporan-keuangan-[Nama]-[Jam][Menit][detik].pdf
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            
+            const ownerSlug = currentOwner.toLowerCase().replace(/\s+/g, '-');
+            const timeString = `${hours}${minutes}${seconds}`;
+            const fileName = `laporan-keuangan-${ownerSlug}-${timeString}.pdf`;
+
+            // Inisialisasi jsPDF
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+
+            // Header Dokumen PDF
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(15);
+            doc.text(`Laporan Keuangan: ${currentOwner}`, 14, 18);
+
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(9);
+            doc.setTextColor(100);
+            doc.text("Sumber data: Google Sheets (Live Sync)", 14, 24);
+
+            let startY = 30;
+
+            // 1. Tabel Pemasukan di PDF
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(11);
+            doc.setTextColor(39, 174, 96);
+            doc.text("Daftar Pemasukan", 14, startY);
+
+            const incomeRows = currentIncomes.map(t => [
+                formatDate(t.date),
+                t.name || '-',
+                `Rp${formatRupiah(parseFloat(t.amount) || 0)}`,
+                t.category || '-',
+                t.method || '-',
+                t.note || '-'
+            ]);
+
+            doc.autoTable({
+                startY: startY + 4,
+                head: [['Tanggal', 'Nama Transaksi', 'Jumlah (Rp)', 'Kategori', 'Metode', 'Catatan']],
+                body: incomeRows.length > 0 ? incomeRows : [['-', 'Tidak ada data', '-', '-', '-', '-']],
+                theme: 'grid',
+                headStyles: { fillColor: [39, 174, 96], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+                bodyStyles: { fontSize: 8, textColor: 50 },
+                columnStyles: { 2: { halign: 'right' } }
+            });
+
+            // 2. Tabel Pengeluaran di PDF
+            let nextY = doc.lastAutoTable.finalY + 10;
+            
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(11);
+            doc.setTextColor(192, 57, 43);
+            doc.text("Daftar Pengeluaran", 14, nextY);
+
+            const expenseRows = currentExpenses.map(t => [
+                formatDate(t.date),
+                t.name || '-',
+                `Rp${formatRupiah(parseFloat(t.amount) || 0)}`,
+                t.category || '-',
+                t.method || '-',
+                t.note || '-'
+            ]);
+
+            doc.autoTable({
+                startY: nextY + 4,
+                head: [['Tanggal', 'Nama Transaksi', 'Jumlah (Rp)', 'Kategori', 'Metode', 'Catatan']],
+                body: expenseRows.length > 0 ? expenseRows : [['-', 'Tidak ada data', '-', '-', '-', '-']],
+                theme: 'grid',
+                headStyles: { fillColor: [192, 57, 43], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+                bodyStyles: { fontSize: 8, textColor: 50 },
+                columnStyles: { 2: { halign: 'right' } }
+            });
+
+            // 3. Ringkasan Keuangan di PDF
+            let summaryY = doc.lastAutoTable.finalY + 10;
+            const pageHeight = doc.internal.pageSize.height;
+
+            if (summaryY + 25 > pageHeight) {
+                doc.addPage();
+                summaryY = 20;
+            }
+
+            const netBalance = computedIncome - computedExpense;
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(11);
+            doc.setTextColor(41, 128, 185);
+            doc.text("Ringkasan Keuangan", 14, summaryY);
+
+            doc.autoTable({
+                startY: summaryY + 4,
+                head: [['Total Pemasukan', 'Total Pengeluaran', 'Saldo Bersih']],
+                body: [[
+                    `Rp${formatRupiah(computedIncome)}`,
+                    `Rp${formatRupiah(computedExpense)}`,
+                    `Rp${formatRupiah(netBalance)}`
+                ]],
+                theme: 'plain',
+                headStyles: { fillColor: [240, 240, 240], textColor: 50, fontStyle: 'bold', fontSize: 9, halign: 'center' },
+                bodyStyles: { fontSize: 9, fontStyle: 'bold', halign: 'center', textColor: [20, 20, 20] },
+                styles: { cellPadding: 4, lineColor: [200, 200, 200], lineWidth: 0.1 }
+            });
+
+            // Simpan PDF
+            doc.save(fileName);
+        }
+    </script>
+</body>
+</html>
